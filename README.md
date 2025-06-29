@@ -24,6 +24,7 @@ Transform complex, multi-tool visual design workflows into AI-accessible service
 - **Container-First Deployment**: Complete Docker containerization with development and production configurations
 - **Professional Testing**: Comprehensive test suite with near 100% coverage using pytest and TDD patterns
 - **Modern Python Tooling**: Built with `uv`, `pyproject.toml`, and contemporary Python best practices
+- **Plugin Architecture**: Tool servers discovered and mounted dynamically
 
 ### Planned Features
 
@@ -31,7 +32,6 @@ Transform complex, multi-tool visual design workflows into AI-accessible service
 - **Multi-Environment Support**: Development, staging, and production environment configurations
 - **Monitoring & Observability**: Built-in logging, metrics, and health checks
 - **Authentication & Authorization**: Secure access control for production deployments
-- **Plugin Architecture**: Extensible system for adding new tool integrations
 
 ## 🏗️ Architecture
 
@@ -202,7 +202,7 @@ mcp-design-platform/
 
 ## 🗺️ Roadmap
 
-### Phase 1: Foundation (Current)
+### Phase 1: Foundation (Completed)
 - [x] Project scaffolding with modern Python tooling
 - [x] Basic FastAPI + FastMCP integration
 - [x] Docker containerization
@@ -210,7 +210,7 @@ mcp-design-platform/
 - [x] Redis job queue integration
 - [x] Basic tool implementations
 
-### Phase 2: Core Platform (Next 4-6 weeks)
+### Phase 2: Core Platform (In Progress)
 - [ ] Complete asynchronous job processing system
 - [ ] Progress tracking and status endpoints
 - [ ] Comprehensive error handling and logging
