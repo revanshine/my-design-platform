@@ -221,4 +221,4 @@ async def main():
         worker_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await worker_task
-        await redis.close()
+        await redis.aclose()
