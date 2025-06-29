@@ -551,3 +551,8 @@ return fetch_from_db(id)
 - [Docker development best practices](https://docs.docker.com/develop/dev-best-practices/)
 
 **Remember: The goal is to write code that works correctly, is easy to maintain, and can be understood by both humans and AI agents. Test-Driven Development is the path to achieving this goal reliably.**
+
+## Notes
+
+- Project created from the uvx template; some components may be incomplete. Verify package names and dependencies before implementing features.
+- Async tests require the pytest-asyncio plugin and runtime dependencies like `mcp` and `redis` installed.
