@@ -4,6 +4,8 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "src"))
 import pytest
 from mcp_platform import server
 from mcp_platform.jobs.queue import Job
+import asyncio
+import fakeredis.aioredis
 
 # disable request context checks for unit testing
 server.server.__class__.request_context = property(lambda self: None)
@@ -56,3 +58,103 @@ async def test_read_resource_invalid_scheme():
 async def test_call_tool_unknown():
     with pytest.raises(ValueError):
         await server.handle_call_tool('unknown', {'x': 'y'})
+
+@pytest.mark.asyncio
+async def test_get_prompt_unknown():
+    with pytest.raises(ValueError):
+        await server.handle_get_prompt('bad', None)
+
+@pytest.mark.asyncio
+async def test_handle_list_tools():
+    tools = await server.handle_list_tools()
+    names = [t.name for t in tools]
+    assert set(names) >= {'add-note', 'add-note-async', 'delete-note'}
+
+@pytest.mark.asyncio
+async def test_call_tool_missing_arguments():
+    with pytest.raises(ValueError):
+        await server.handle_call_tool('add-note', None)
+
+@pytest.mark.asyncio
+async def test_call_tool_add_missing_fields():
+    with pytest.raises(ValueError):
+        await server.handle_call_tool('add-note', {'name': 'x'})
+
+@pytest.mark.asyncio
+async def test_call_tool_add_triggers_notification(monkeypatch):
+    server.notes.clear()
+    class Session:
+        def __init__(self):
+            self.called = False
+        async def send_resource_list_changed(self):
+            self.called = True
+    session = Session()
+    server.server.__class__.request_context = property(lambda self: type('Ctx',(object,),{'session':session})())
+    await server.handle_call_tool('add-note', {'name':'n3','content':'c3'})
+    assert session.called
+    server.server.__class__.request_context = property(lambda self: None)
+
+@pytest.mark.asyncio
+async def test_call_tool_add_async_no_queue():
+    server.notes.clear()
+    server.job_queue = None
+    with pytest.raises(ValueError):
+        await server.handle_call_tool('add-note-async', {'name': 'n4', 'content': 'c4'})
+
+@pytest.mark.asyncio
+async def test_call_tool_add_async_missing_fields():
+    server.notes.clear()
+    class DummyQueue:
+        async def enqueue(self, job):
+            pass
+    server.job_queue = DummyQueue()
+    with pytest.raises(ValueError):
+        await server.handle_call_tool('add-note-async', {'name': 'n4'})
+
+@pytest.mark.asyncio
+async def test_call_tool_delete_missing_name():
+    server.notes.clear()
+    with pytest.raises(ValueError):
+        await server.handle_call_tool('delete-note', {'content': 'c'})
+
+@pytest.mark.asyncio
+async def test_call_tool_delete_not_found():
+    server.notes.clear()
+    with pytest.raises(ValueError):
+        await server.handle_call_tool('delete-note', {'name': 'none'})
+
+@pytest.mark.asyncio
+async def test_call_tool_delete_triggers_notification(monkeypatch):
+    server.notes.clear()
+    server.notes['del'] = 'x'
+    class Session:
+        def __init__(self):
+            self.called = False
+        async def send_resource_list_changed(self):
+            self.called = True
+    session = Session()
+    server.server.__class__.request_context = property(lambda self: type('Ctx',(object,),{'session':session})())
+    await server.handle_call_tool('delete-note', {'name': 'del'})
+    assert session.called
+    server.server.__class__.request_context = property(lambda self: None)
+
+@pytest.mark.asyncio
+async def test_main_runs(monkeypatch):
+    server.notes.clear()
+    called = {}
+    async def fake_worker(redis, poll_interval=0.01):
+        called['worker'] = True
+    async def fake_run(read, write, opts):
+        called['run'] = True
+        await asyncio.sleep(0)
+    class FakeCM:
+        async def __aenter__(self):
+            return object(), object()
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+    monkeypatch.setattr(server, 'worker', fake_worker)
+    monkeypatch.setattr(server.mcp.server.stdio, 'stdio_server', lambda: FakeCM())
+    monkeypatch.setattr(server.server, 'run', fake_run)
+    monkeypatch.setattr(server.Redis, 'from_url', lambda *a, **k: fakeredis.aioredis.FakeRedis())
+    await server.main()
+    assert 'run' in called and 'worker' in called
