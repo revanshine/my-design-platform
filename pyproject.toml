@@ -1,0 +1,17 @@
+[project]
+name = "my-design-platform"
+version = "0.1.0"
+description = "A MCP server project"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [ "mcp>=1.10.1",]
+[[project.authors]]
+name = "revanshine"
+email = "bothy_jarmo@vpseudo.com"
+
+[build-system]
+requires = [ "hatchling",]
+build-backend = "hatchling.build"
+
+[project.scripts]
+my-design-platform = "my_design_platform:main"
