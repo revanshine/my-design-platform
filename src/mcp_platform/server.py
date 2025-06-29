@@ -1,13 +1,19 @@
 import asyncio
+import contextlib
 
 from mcp.server.models import InitializationOptions
 import mcp.types as types
 from mcp.server import NotificationOptions, Server
 from pydantic import AnyUrl
 import mcp.server.stdio
+from redis.asyncio import Redis
+
+from .jobs.queue import Job, RedisJobQueue
+from .jobs.worker import worker
 
 # Store notes as a simple key-value dict to demonstrate state management
 notes: dict[str, str] = {}
+job_queue: RedisJobQueue | None = None
 
 server = Server("my-design-platform")
 
@@ -111,7 +117,28 @@ async def handle_list_tools() -> list[types.Tool]:
                 },
                 "required": ["name", "content"],
             },
-        )
+        ),
+        types.Tool(
+            name="add-note-async",
+            description="Add a new note asynchronously via the job queue",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "content": {"type": "string"},
+                },
+                "required": ["name", "content"],
+            },
+        ),
+        types.Tool(
+            name="delete-note",
+            description="Delete an existing note",
+            inputSchema={
+                "type": "object",
+                "properties": {"name": {"type": "string"}},
+                "required": ["name"],
+            },
+        ),
     ]
 
 @server.call_tool()
@@ -122,43 +149,76 @@ async def handle_call_tool(
     Handle tool execution requests.
     Tools can modify server state and notify clients of changes.
     """
-    if name != "add-note":
-        raise ValueError(f"Unknown tool: {name}")
-
     if not arguments:
         raise ValueError("Missing arguments")
 
-    note_name = arguments.get("name")
-    content = arguments.get("content")
+    if name == "add-note":
+        note_name = arguments.get("name")
+        content = arguments.get("content")
+        if not note_name or not content:
+            raise ValueError("Missing name or content")
+        notes[note_name] = content
+        if getattr(server, "request_context", None):
+            await server.request_context.session.send_resource_list_changed()
+        return [
+            types.TextContent(
+                type="text",
+                text=f"Added note '{note_name}' with content: {content}",
+            )
+        ]
 
-    if not note_name or not content:
-        raise ValueError("Missing name or content")
+    if name == "add-note-async":
+        if job_queue is None:
+            raise ValueError("Job queue not initialized")
+        note_name = arguments.get("name")
+        content = arguments.get("content")
+        if not note_name or not content:
+            raise ValueError("Missing name or content")
+        await job_queue.enqueue(Job(type="add-note", data={"name": note_name, "content": content}))
+        return [
+            types.TextContent(
+                type="text",
+                text=f"Queued note '{note_name}' for addition",
+            )
+        ]
 
-    # Update server state
-    notes[note_name] = content
+    if name == "delete-note":
+        note_name = arguments.get("name")
+        if not note_name:
+            raise ValueError("Missing name")
+        if note_name in notes:
+            del notes[note_name]
+            if getattr(server, "request_context", None):
+                await server.request_context.session.send_resource_list_changed()
+            return [
+                types.TextContent(type="text", text=f"Deleted note '{note_name}'")
+            ]
+        raise ValueError(f"Note not found: {note_name}")
 
-    # Notify clients that resources have changed
-    await server.request_context.session.send_resource_list_changed()
-
-    return [
-        types.TextContent(
-            type="text",
-            text=f"Added note '{note_name}' with content: {content}",
-        )
-    ]
+    raise ValueError(f"Unknown tool: {name}")
 
 async def main():
-    # Run the server using stdin/stdout streams
-    async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
-        await server.run(
-            read_stream,
-            write_stream,
-            InitializationOptions(
-                server_name="my-design-platform",
-                server_version="0.1.0",
-                capabilities=server.get_capabilities(
-                    notification_options=NotificationOptions(),
-                    experimental_capabilities={},
+    """Entry point for running the MCP server."""
+    redis = Redis.from_url("redis://localhost:6379/0", decode_responses=True)
+    global job_queue
+    job_queue = RedisJobQueue(redis)
+    worker_task = asyncio.create_task(worker(redis))
+    try:
+        async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
+            await server.run(
+                read_stream,
+                write_stream,
+                InitializationOptions(
+                    server_name="my-design-platform",
+                    server_version="0.1.0",
+                    capabilities=server.get_capabilities(
+                        notification_options=NotificationOptions(),
+                        experimental_capabilities={},
+                    ),
                 ),
-            ),
-        )
+            )
+    finally:
+        worker_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await worker_task
+        await redis.close()
