@@ -39,7 +39,6 @@ Transform complex, multi-tool visual design workflows into AI-accessible service
 
 ┌─────────────────────────────────────────┐
 │             LM Studio Client            │
-│          (macOS M4 Max 48GB)           │
 └─────────────────┬───────────────────────┘
 │ MCP Protocol
 ┌─────────────────▼───────────────────────┐
@@ -74,7 +73,7 @@ Transform complex, multi-tool visual design workflows into AI-accessible service
 
 ### Target Deployment
 - **Windows PC**: NVIDIA GPU-enabled workstation for design tools
-- **macOS Client**: M4 Max with 48GB RAM running LM Studio
+- **macOS Client**: i.e. M4 Max with 48GB RAM running LM Studio
 
 ## 🚀 Quick Start
 
