@@ -1,0 +1,8 @@
+{
+  "servers": {
+    "my-design-platform": {
+      "command": "uv",
+      "args": ["run", "my-design-platform"]
+    }
+  }
+}
