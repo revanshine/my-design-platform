@@ -11,6 +11,19 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "src"))
 
 from mcp_platform import server
 from mcp_platform.jobs.queue import RedisJobQueue
+from mcp_platform.jobs.worker import worker
+import asyncio
+import contextlib
+
+
+async def wait_for_note_in_redis(redis: Redis, name: str, timeout: float = 3.0) -> None:
+    """Poll Redis until the note exists or timeout."""
+    start = time.monotonic()
+    while time.monotonic() - start < timeout:
+        if await redis.hexists("notes", name):
+            return
+        await asyncio.sleep(0.05)
+    raise TimeoutError(f"Note {name} not found in Redis after {timeout}s")
 
 
 @pytest.fixture(scope="module")
@@ -45,7 +58,14 @@ async def test_notes_persistence(redis_url):
     server.redis_conn = redis
     server.job_queue = RedisJobQueue(redis)
 
-    await server.handle_call_tool("add-note", {"name": "persist", "content": "c1"})
+    worker_task = asyncio.create_task(worker(redis, poll_interval=0.05))
+    try:
+        await server.handle_call_tool("add-note-async", {"name": "persist", "content": "c1"})
+        await wait_for_note_in_redis(redis, "persist")
+    finally:
+        worker_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await worker_task
 
     server.notes.clear()
     server.job_queue = RedisJobQueue(redis)
