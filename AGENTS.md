@@ -72,9 +72,9 @@ uv run pytest
 
 # To run tests and check code coverage
 
-# Note the "--" separator. This is critical.
+# Note the "--" separator comes BEFORE pytest, not after
 
-uv run pytest -- --cov=src/mcp_platform --cov-report=term-missing
+uv run -- pytest --cov=src/mcp_platform --cov-report=term-missing
 
 ```
 
@@ -421,11 +421,11 @@ class WorkflowTools:
 
 # Run all tests with coverage
 
-uv run pytest -- --cov=src/mcp_platform --cov-report=term-missing
+uv run -- pytest --cov=src/mcp_platform --cov-report=term-missing
 
 # Ensure no warnings
 
-uv run pytest -- --disable-warnings
+uv run -- pytest --disable-warnings
 
 # Check type hints
 
