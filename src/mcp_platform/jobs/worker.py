@@ -17,6 +17,8 @@ async def process_job(job: Job) -> None:
         note_name = job.data["name"]
         content = job.data["content"]
         server.notes[note_name] = content
+        if server.redis_conn is not None:
+            await server.redis_conn.hset("notes", note_name, content)
         if getattr(server, "request_context", None):
             await server.request_context.session.send_resource_list_changed()
 
