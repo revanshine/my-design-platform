@@ -107,8 +107,7 @@ uv pip install -e .
 
 docker build -f Dockerfile.dev -t mcp-platform:dev .
 
-# Run with Docker Compose (includes Redis for job queue)
-
+# Start the Redis service with Docker Compose before running the server
 docker-compose -f docker-compose.dev.yml up -d
 
 # The MCP server will be available at http://localhost:8080

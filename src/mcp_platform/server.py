@@ -7,12 +7,14 @@ from mcp.server import NotificationOptions, Server
 from pydantic import AnyUrl
 import mcp.server.stdio
 from redis.asyncio import Redis
+import os
 
 from .jobs.queue import Job, RedisJobQueue
 from .jobs.worker import worker
 
 # Store notes as a simple key-value dict to demonstrate state management
 notes: dict[str, str] = {}
+redis_conn: Redis | None = None
 job_queue: RedisJobQueue | None = None
 
 server = Server("my-design-platform")
@@ -158,6 +160,8 @@ async def handle_call_tool(
         if not note_name or not content:
             raise ValueError("Missing name or content")
         notes[note_name] = content
+        if redis_conn is not None:
+            await redis_conn.hset("notes", note_name, content)
         if getattr(server, "request_context", None):
             await server.request_context.session.send_resource_list_changed()
         return [
@@ -188,6 +192,8 @@ async def handle_call_tool(
             raise ValueError("Missing name")
         if note_name in notes:
             del notes[note_name]
+            if redis_conn is not None:
+                await redis_conn.hdel("notes", note_name)
             if getattr(server, "request_context", None):
                 await server.request_context.session.send_resource_list_changed()
             return [
@@ -199,8 +205,11 @@ async def handle_call_tool(
 
 async def main():
     """Entry point for running the MCP server."""
-    redis = Redis.from_url("redis://localhost:6379/0", decode_responses=True)
-    global job_queue
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    redis = Redis.from_url(redis_url, decode_responses=True)
+    global job_queue, redis_conn, notes
+    redis_conn = redis
+    notes = await redis.hgetall("notes")
     job_queue = RedisJobQueue(redis)
     worker_task = asyncio.create_task(worker(redis))
     try:
