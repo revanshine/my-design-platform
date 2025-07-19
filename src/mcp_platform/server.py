@@ -128,6 +128,15 @@ async def handle_list_tools() -> list[types.Tool]:
             },
         ),
         types.Tool(
+            name="read-note",
+            description="Read an existing note",
+            inputSchema={
+                "type": "object",
+                "properties": {"name": {"type": "string"}},
+                "required": ["name"],
+            },
+        ),
+        types.Tool(
             name="add-note-async",
             description="Add a new note asynchronously via the job queue",
             inputSchema={
@@ -160,6 +169,12 @@ async def handle_call_tool(
     """
     if not arguments:
         raise ValueError("Missing arguments")
+
+    if name == "read-note":
+        note_name = arguments.get("name")
+        if not note_name:
+            raise ValueError("Missing name")
+        return [types.TextContent(type="text", text=read_note(note_name))]
 
     if name == "add-note":
         note_name = arguments.get("name")
