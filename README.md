@@ -138,6 +138,25 @@ Add to your `mcp.json`:
 
 ```
 
+## 📝 Note Management
+
+You can retrieve note contents programmatically using `read_note`:
+
+```python
+from mcp_platform import server
+
+server.notes['welcome'] = 'hello world'
+content = server.read_note('welcome')
+```
+
+`read_note` raises `ValueError` if the note does not exist.
+
+The server also exposes a `read-note` tool to fetch a note via the MCP protocol:
+
+```python
+await server.handle_call_tool('read-note', {'name': 'welcome'})
+```
+
 ## 🧪 Testing
 
 This project follows **strict Test-Driven Development** practices:

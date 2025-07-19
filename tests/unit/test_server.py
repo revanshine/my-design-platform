@@ -68,7 +68,7 @@ async def test_get_prompt_unknown():
 async def test_handle_list_tools():
     tools = await server.handle_list_tools()
     names = [t.name for t in tools]
-    assert set(names) >= {'add-note', 'add-note-async', 'delete-note'}
+    assert set(names) >= {'add-note', 'add-note-async', 'delete-note', 'read-note'}
 
 @pytest.mark.asyncio
 async def test_call_tool_missing_arguments():
@@ -139,6 +139,19 @@ async def test_call_tool_delete_triggers_notification(monkeypatch):
     server.server.__class__.request_context = property(lambda self: None)
 
 @pytest.mark.asyncio
+async def test_call_tool_read_note():
+    server.notes.clear()
+    server.notes['r'] = 'content'
+    result = await server.handle_call_tool('read-note', {'name': 'r'})
+    assert result[0].text == 'content'
+
+@pytest.mark.asyncio
+async def test_call_tool_read_note_missing():
+    server.notes.clear()
+    with pytest.raises(ValueError):
+        await server.handle_call_tool('read-note', {'name': 'missing'})
+
+@pytest.mark.asyncio
 async def test_main_runs(monkeypatch):
     server.notes.clear()
     called = {}
@@ -158,3 +171,15 @@ async def test_main_runs(monkeypatch):
     monkeypatch.setattr(server.Redis, 'from_url', lambda *a, **k: fakeredis.aioredis.FakeRedis())
     await server.main()
     assert 'run' in called and 'worker' in called
+
+
+def test_read_note():
+    server.notes.clear()
+    server.notes['r'] = 'readable'
+    assert server.read_note('r') == 'readable'
+
+
+def test_read_note_missing():
+    server.notes.clear()
+    with pytest.raises(ValueError):
+        server.read_note('none')
