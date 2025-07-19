@@ -1,12 +1,13 @@
 import shutil
-import subprocess
 import time
+import os
 
 import pytest
 from redis.asyncio import Redis
 
 import sys
 import pathlib
+
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "src"))
 
 from mcp_platform import server
@@ -16,7 +17,9 @@ import asyncio
 import contextlib
 
 
-async def wait_for_note_in_redis(redis: Redis, name: str, timeout: float = 3.0) -> None:
+async def wait_for_note_in_redis(
+    redis: Redis, name: str, timeout: float = 3.0
+) -> None:
     """Poll Redis until the note exists or timeout."""
     start = time.monotonic()
     while time.monotonic() - start < timeout:
@@ -28,24 +31,20 @@ async def wait_for_note_in_redis(redis: Redis, name: str, timeout: float = 3.0) 
 
 @pytest.fixture(scope="module")
 def redis_url():
-    if shutil.which("redis-server") is None:
-        pytest.skip("redis-server not available")
-    proc = subprocess.Popen([
-        "redis-server",
-        "--port",
-        "6380",
-        "--save",
-        "",
-        "--appendonly",
-        "no",
-    ])
-    time.sleep(0.5)
-    url = "redis://localhost:6380/0"
+    url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     try:
+        redis = Redis.from_url(url, decode_responses=True)
+        # Try a simple command to check connectivity
+        import asyncio
+
+        async def check_redis(r):
+            await r.ping()
+
+        asyncio.run(check_redis(redis))
         yield url
+    except Exception:
+        pytest.skip(f"Redis not available at {url}")
     finally:
-        subprocess.run(["redis-cli", "-p", "6380", "shutdown"], stdout=subprocess.DEVNULL)
-        proc.wait()
         server.redis_conn = None
         server.job_queue = None
 
@@ -60,7 +59,9 @@ async def test_notes_persistence(redis_url):
 
     worker_task = asyncio.create_task(worker(redis, poll_interval=0.05))
     try:
-        await server.handle_call_tool("add-note-async", {"name": "persist", "content": "c1"})
+        await server.handle_call_tool(
+            "add-note-async", {"name": "persist", "content": "c1"}
+        )
         await wait_for_note_in_redis(redis, "persist")
     finally:
         worker_task.cancel()
