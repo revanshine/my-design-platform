@@ -158,3 +158,15 @@ async def test_main_runs(monkeypatch):
     monkeypatch.setattr(server.Redis, 'from_url', lambda *a, **k: fakeredis.aioredis.FakeRedis())
     await server.main()
     assert 'run' in called and 'worker' in called
+
+
+def test_read_note():
+    server.notes.clear()
+    server.notes['r'] = 'readable'
+    assert server.read_note('r') == 'readable'
+
+
+def test_read_note_missing():
+    server.notes.clear()
+    with pytest.raises(ValueError):
+        server.read_note('none')

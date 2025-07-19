@@ -17,6 +17,13 @@ notes: dict[str, str] = {}
 redis_conn: Redis | None = None
 job_queue: RedisJobQueue | None = None
 
+
+def read_note(name: str) -> str:
+    """Return the content of ``name`` or raise ``ValueError`` if missing."""
+    if name not in notes:
+        raise ValueError(f"Note not found: {name}")
+    return notes[name]
+
 server = Server("my-design-platform")
 
 @server.list_resources()
